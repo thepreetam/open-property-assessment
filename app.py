@@ -1,45 +1,50 @@
 """
 AI Property Condition & Value Assessment – Opendoor-inspired prototype.
 Upload 1–5 photos → room classification, YOLO detection, BLIP/LLaVA condition analysis → illustrative price adjustment.
+Heavy libs (torch, transformers, cv2, ultralytics) are imported only when needed to keep free-tier memory under 512MB.
 """
 import os
 import streamlit as st
-from transformers import pipeline, AutoProcessor, LlavaForConditionalGeneration
-from PIL import Image, ImageDraw, ImageFont
-import torch
-import cv2
+from PIL import Image
 import numpy as np
-from ultralytics import YOLO
 import pandas as pd
 
-# ── Device & flags ──
-device = "cuda" if torch.cuda.is_available() else "cpu"
-dtype = torch.float16 if device == "cuda" else torch.float32
+# ── Flags (no torch import here so cold start stays light) ──
 USE_LLAVA = os.environ.get("USE_LLAVA", "false").lower() == "true"
-# Free tier (512MB): only room classifier; set FREE_TIER=false on paid instances for full BLIP + YOLO
 FREE_TIER = os.environ.get("FREE_TIER", "true").lower() == "true"
 
-# ── Cached heavy resources ──
+# ── Cached heavy resources (lazy imports inside to avoid loading torch/transformers until first upload) ──
 @st.cache_resource(show_spinner="Loading room classifier...")
 def load_room_classifier():
+    import torch
+    from transformers import pipeline
+    device = 0 if torch.cuda.is_available() else -1
+    # Smaller model for 512MB: JuanMa360/room-classification (andupets ViT is too large on free tier)
     return pipeline(
         "image-classification",
-        model="andupets/real-estate-image-classification",
-        device=0 if device == "cuda" else -1,
+        model="JuanMa360/room-classification",
+        device=device,
     )
 
 
 @st.cache_resource(show_spinner="Loading BLIP captioner...")
 def load_captioner():
-    return pipeline("image-to-text", model="Salesforce/blip-image-captioning-large", device=0 if device == "cuda" else -1)
+    import torch
+    from transformers import pipeline
+    device = 0 if torch.cuda.is_available() else -1
+    return pipeline("image-to-text", model="Salesforce/blip-image-captioning-large", device=device)
 
 
 @st.cache_resource(show_spinner="Loading YOLO detector...")
 def load_yolo():
+    from ultralytics import YOLO
     return YOLO("yolov8n.pt")
 
 
 def _load_llava():
+    import torch
+    from transformers import AutoProcessor, LlavaForConditionalGeneration
+    dtype = torch.float16 if torch.cuda.is_available() else torch.float32
     model_id = "llava-hf/llava-v1.6-mistral-7b-hf"
     processor = AutoProcessor.from_pretrained(model_id)
     model = LlavaForConditionalGeneration.from_pretrained(
@@ -61,12 +66,14 @@ def get_condition_description(image, room: str, captioner_pipeline, llava_proces
         return "(Condition analysis and object detection need more memory. Use a paid Render instance for full analysis.)"
     if llava_processor_model is not None:
         try:
+            import torch
             processor, model = llava_processor_model
             prompt = (
                 f"Assess this {room} on quality scale 1–10. "
                 "Detail upgrades (modern appliances, premium materials), wear/outdated features, "
                 "needed repairs (cracks, damage, mold, outdated fixtures). Be objective, specific, and concise."
             )
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             inputs = processor(text=prompt, images=image, return_tensors="pt").to(device)
             with torch.inference_mode():
                 output = model.generate(**inputs, max_new_tokens=220, do_sample=False)
@@ -138,7 +145,8 @@ def compute_adjustment(room: str, desc: str, yolo_results, base_home_value: int)
 
 
 def annotate_image(image: Image.Image, yolo_results, desc: str) -> Image.Image:
-    """Draw YOLO boxes on image; color by keyword heuristic (green / orange / red)."""
+    """Draw YOLO boxes on image; color by keyword heuristic (green / orange / red). Lazy-import cv2."""
+    import cv2
     img_arr = np.array(image)
     if img_arr.ndim == 2:
         img_cv = cv2.cvtColor(img_arr, cv2.COLOR_GRAY2BGR)
@@ -176,7 +184,7 @@ st.caption(
 
 with st.sidebar:
     st.header("Settings")
-    st.info(f"Running on **{device.upper()}**" + (" | Free tier (room only)" if FREE_TIER else (" | LLaVA" if USE_LLAVA else " | BLIP + YOLO")))
+    st.info(("Free tier (room only)" if FREE_TIER else ("LLaVA" if USE_LLAVA else "BLIP + YOLO")))
     st.caption("Models load when you upload photos." + (" Full analysis needs a paid instance." if FREE_TIER else " First run may take 2–5 min."))
     home_value = st.slider("Estimated home value ($)", 200_000, 2_000_000, 500_000, step=50_000)
     st.markdown("Adjustments are **illustrative** (±%) based on detected condition.")
