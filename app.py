@@ -163,13 +163,7 @@ def annotate_image(image: Image.Image, yolo_results, desc: str) -> Image.Image:
     return Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
 
 
-# ── Load models (BLIP + YOLO always; LLaVA only if USE_LLAVA) ──
-room_classifier = load_room_classifier()
-captioner = load_captioner()
-yolo_model = load_yolo()
-llava_processor_model = load_llava() if USE_LLAVA else None
-
-# ── App layout ──
+# ── App layout (models load lazily on first upload to keep page load fast) ──
 st.set_page_config(page_title="AI Property Assessment", layout="wide")
 st.title("AI Property Condition & Value Assessment")
 st.caption(
@@ -179,7 +173,7 @@ st.caption(
 with st.sidebar:
     st.header("Settings")
     st.info(f"Running on **{device.upper()}**" + (" | LLaVA enabled" if USE_LLAVA else " | BLIP only"))
-    st.caption("First run loads models; may take 1–2 min.")
+    st.caption("Models load when you upload photos; first run may take 2–5 min.")
     home_value = st.slider("Estimated home value ($)", 200_000, 2_000_000, 500_000, step=50_000)
     st.markdown("Adjustments are **illustrative** (±%) based on detected condition.")
     st.markdown("**Disclaimer**: Not financial advice. Inspired by Opendoor's AI assessments/RiskAI.")
@@ -189,6 +183,12 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
+    with st.spinner("Loading AI models (first time may take 2–5 min on free tier)…"):
+        room_classifier = load_room_classifier()
+        captioner = load_captioner()
+        yolo_model = load_yolo()
+        llava_processor_model = load_llava() if USE_LLAVA else None
+
     tab1, tab2 = st.tabs(["Per-Photo Details", "Aggregate Summary"])
     all_data = []
     progress = st.progress(0.0)
