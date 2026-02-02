@@ -20,8 +20,8 @@ Opendoor-inspired prototype: upload 1–5 home photos (kitchen, bathroom, living
    - **Build command:** `pip install -r requirements.txt`
    - **Start command:** `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0`
    - **Python:** Render uses `runtime.txt` (e.g. `python-3.11.7`) if present.
-4. **Free tier:** ~512MB RAM, spins down after 15 min idle (cold start ~1 min). Keep default stack; do **not** set `USE_LLAVA=true` (OOM risk).
-5. **Paid instance (e.g. 2GB+ RAM):** Set env var `USE_LLAVA=true` in the service to enable LLaVA for richer condition text.
+4. **Free tier (512MB):** The app runs in **room-only mode** (`FREE_TIER=true` in `render.yaml`) so it fits in 512MB: only room classification runs; condition text and object detection show a message that a paid instance is needed. Spins down after 15 min idle (cold start ~1 min).
+5. **Paid instance (1GB+ RAM):** Set env var **`FREE_TIER=false`** to enable full analysis (BLIP captioning + YOLO detection). Optionally set **`USE_LLAVA=true`** for LLaVA condition text (use 2GB+ RAM).
 
 ## Opendoor tie-in
 
@@ -31,7 +31,7 @@ This prototype automates condition flagging for faster assessments and illustrat
 
 - Adjustments are **rule-based heuristics**, not accurate valuations. Not financial advice.
 - Bias: lighting/angle and training data affect results; production would need diverse datasets.
-- LLaVA is optional and memory-heavy; default stack (room classifier + BLIP + YOLO) runs on CPU and smaller RAM.
+- On Render free tier only the room classifier runs (512MB limit); set `FREE_TIER=false` on a paid instance for BLIP + YOLO.
 
 ## Run locally (optional)
 

@@ -12,10 +12,12 @@ import numpy as np
 from ultralytics import YOLO
 import pandas as pd
 
-# ── Device & LLaVA flag ──
+# ── Device & flags ──
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.float16 if device == "cuda" else torch.float32
 USE_LLAVA = os.environ.get("USE_LLAVA", "false").lower() == "true"
+# Free tier (512MB): only room classifier; set FREE_TIER=false on paid instances for full BLIP + YOLO
+FREE_TIER = os.environ.get("FREE_TIER", "true").lower() == "true"
 
 # ── Cached heavy resources ──
 @st.cache_resource(show_spinner="Loading room classifier...")
@@ -54,7 +56,9 @@ def load_llava():
 
 
 def get_condition_description(image, room: str, captioner_pipeline, llava_processor_model):
-    """Use LLaVA if available and successful, else BLIP caption."""
+    """Use LLaVA if available and successful, else BLIP caption. Returns placeholder if no captioner (free tier)."""
+    if captioner_pipeline is None:
+        return "(Condition analysis and object detection need more memory. Use a paid Render instance for full analysis.)"
     if llava_processor_model is not None:
         try:
             processor, model = llava_processor_model
@@ -172,8 +176,8 @@ st.caption(
 
 with st.sidebar:
     st.header("Settings")
-    st.info(f"Running on **{device.upper()}**" + (" | LLaVA enabled" if USE_LLAVA else " | BLIP only"))
-    st.caption("Models load when you upload photos; first run may take 2–5 min.")
+    st.info(f"Running on **{device.upper()}**" + (" | Free tier (room only)" if FREE_TIER else (" | LLaVA" if USE_LLAVA else " | BLIP + YOLO")))
+    st.caption("Models load when you upload photos." + (" Full analysis needs a paid instance." if FREE_TIER else " First run may take 2–5 min."))
     home_value = st.slider("Estimated home value ($)", 200_000, 2_000_000, 500_000, step=50_000)
     st.markdown("Adjustments are **illustrative** (±%) based on detected condition.")
     st.markdown("**Disclaimer**: Not financial advice. Inspired by Opendoor's AI assessments/RiskAI.")
@@ -183,11 +187,16 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    with st.spinner("Loading AI models (first time may take 2–5 min on free tier)…"):
+    with st.spinner("Loading AI models…" + (" (room-only on free tier)" if FREE_TIER else " (first time may take 2–5 min)")):
         room_classifier = load_room_classifier()
-        captioner = load_captioner()
-        yolo_model = load_yolo()
-        llava_processor_model = load_llava() if USE_LLAVA else None
+        if FREE_TIER:
+            captioner = None
+            yolo_model = None
+            llava_processor_model = None
+        else:
+            captioner = load_captioner()
+            yolo_model = load_yolo()
+            llava_processor_model = load_llava() if USE_LLAVA else None
 
     tab1, tab2 = st.tabs(["Per-Photo Details", "Aggregate Summary"])
     all_data = []
@@ -210,8 +219,12 @@ if uploaded_files:
             desc = get_condition_description(image, room, captioner, llava_processor_model)
             col2.markdown(f"**Condition analysis**\n{desc[:500]}" + ("…" if len(desc) > 500 else ""))
 
-            yolo_results = yolo_model(image, verbose=False)
-            annotated = annotate_image(image.copy(), yolo_results, desc)
+            if yolo_model is not None:
+                yolo_results = yolo_model(image, verbose=False)
+                annotated = annotate_image(image.copy(), yolo_results, desc)
+            else:
+                yolo_results = []
+                annotated = image
             col1.image(annotated, caption="YOLO detection + highlights", use_column_width=True)
 
             adj_dollar, adj_pct, notes = compute_adjustment(room, desc, yolo_results, home_value)
