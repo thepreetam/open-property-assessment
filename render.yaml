@@ -10,3 +10,6 @@ services:
         value: "true"
       - key: USE_LLAVA
         value: "false"
+      # Optional: set HF_TOKEN in Render Dashboard (Hugging Face read token) for faster downloads and higher rate limits
+      - key: HF_TOKEN
+        sync: false

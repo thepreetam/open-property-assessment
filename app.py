@@ -185,7 +185,7 @@ st.caption(
 with st.sidebar:
     st.header("Settings")
     st.info(("Free tier (room only)" if FREE_TIER else ("LLaVA" if USE_LLAVA else "BLIP + YOLO")))
-    st.caption("Models load when you upload photos." + (" Full analysis needs a paid instance." if FREE_TIER else " First run may take 2–5 min."))
+    st.caption("Models load when you upload photos." + (" Free/Starter (512MB) can't run models – upgrade to Standard (2GB) and set FREE_TIER=false." if FREE_TIER else " First run may take 2–5 min."))
     home_value = st.slider("Estimated home value ($)", 200_000, 2_000_000, 500_000, step=50_000)
     st.markdown("Adjustments are **illustrative** (±%) based on detected condition.")
     st.markdown("**Disclaimer**: Not financial advice. Inspired by Opendoor's AI assessments/RiskAI.")
@@ -195,86 +195,93 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    with st.spinner("Loading AI models…" + (" (room-only on free tier)" if FREE_TIER else " (first time may take 2–5 min)")):
-        room_classifier = load_room_classifier()
-        if FREE_TIER:
-            captioner = None
-            yolo_model = None
-            llava_processor_model = None
-        else:
+    # Free tier (512MB): don't load any models – avoids OOM. Starter is also 512MB; need Standard (2GB)+ for analysis.
+    if FREE_TIER:
+        tab1, tab2 = st.tabs(["Per-Photo Details", "Aggregate Summary"])
+        st.info(
+            "**Photo analysis needs more RAM.** Free and Starter instances have 512 MB, which isn't enough for the AI models. "
+            "Upgrade to **Standard (2 GB)** or higher in Render → Settings → Instance type, then set **FREE_TIER=false** in Environment to enable room classification and full analysis."
+        )
+        for idx, file in enumerate(uploaded_files):
+            image = Image.open(file).convert("RGB")
+            with tab1:
+                st.subheader(f"Photo {idx + 1}")
+                st.image(image, use_column_width=True, caption="Uploaded – upgrade for analysis")
+            st.markdown("---")
+        with tab2:
+            st.write("Upload photos and upgrade to Standard (2 GB) or higher to see analysis and summary here.")
+    else:
+        with st.spinner("Loading AI models (first time may take 2–5 min)…"):
+            room_classifier = load_room_classifier()
             captioner = load_captioner()
             yolo_model = load_yolo()
             llava_processor_model = load_llava() if USE_LLAVA else None
 
-    tab1, tab2 = st.tabs(["Per-Photo Details", "Aggregate Summary"])
-    all_data = []
-    progress = st.progress(0.0)
+        tab1, tab2 = st.tabs(["Per-Photo Details", "Aggregate Summary"])
+        all_data = []
+        progress = st.progress(0.0)
 
-    for idx, file in enumerate(uploaded_files):
-        progress.progress((idx + 1) / len(uploaded_files))
-        image = Image.open(file).convert("RGB")
+        for idx, file in enumerate(uploaded_files):
+            progress.progress((idx + 1) / len(uploaded_files))
+            image = Image.open(file).convert("RGB")
 
-        with tab1:
-            st.subheader(f"Photo {idx + 1}")
-            col1, col2 = st.columns(2)
-            col1.image(image, use_column_width=True, caption="Original")
+            with tab1:
+                st.subheader(f"Photo {idx + 1}")
+                col1, col2 = st.columns(2)
+                col1.image(image, use_column_width=True, caption="Original")
 
-            room_results = room_classifier(image)
-            room = room_results[0]["label"]
-            room_conf = room_results[0]["score"]
-            col2.metric("Detected Room", room, f"{room_conf:.1%} conf")
+                room_results = room_classifier(image)
+                room = room_results[0]["label"]
+                room_conf = room_results[0]["score"]
+                col2.metric("Detected Room", room, f"{room_conf:.1%} conf")
 
-            desc = get_condition_description(image, room, captioner, llava_processor_model)
-            col2.markdown(f"**Condition analysis**\n{desc[:500]}" + ("…" if len(desc) > 500 else ""))
+                desc = get_condition_description(image, room, captioner, llava_processor_model)
+                col2.markdown(f"**Condition analysis**\n{desc[:500]}" + ("…" if len(desc) > 500 else ""))
 
-            if yolo_model is not None:
                 yolo_results = yolo_model(image, verbose=False)
                 annotated = annotate_image(image.copy(), yolo_results, desc)
-            else:
-                yolo_results = []
-                annotated = image
-            col1.image(annotated, caption="YOLO detection + highlights", use_column_width=True)
+                col1.image(annotated, caption="YOLO detection + highlights", use_column_width=True)
 
-            adj_dollar, adj_pct, notes = compute_adjustment(room, desc, yolo_results, home_value)
-            all_data.append({
-                "Photo": idx + 1,
-                "Room": room,
-                "Quality excerpt": (desc.split("\n")[0] if "\n" in desc else desc)[:60],
-                "Adjustment $": adj_dollar,
-                "% Adj": adj_pct,
-                "Notes": "; ".join(notes),
-            })
-            if adj_dollar > 0:
-                st.success(f"Suggested adjustment: **+${adj_dollar:,}** ({adj_pct:+.1f}%) – illustrative only")
-            elif adj_dollar < 0:
-                st.warning(f"Suggested adjustment: **${adj_dollar:,}** ({adj_pct:.1f}%) – illustrative only")
-            else:
-                st.info("Neutral adjustment – add more logic or photos.")
-            st.markdown("---")
+                adj_dollar, adj_pct, notes = compute_adjustment(room, desc, yolo_results, home_value)
+                all_data.append({
+                    "Photo": idx + 1,
+                    "Room": room,
+                    "Quality excerpt": (desc.split("\n")[0] if "\n" in desc else desc)[:60],
+                    "Adjustment $": adj_dollar,
+                    "% Adj": adj_pct,
+                    "Notes": "; ".join(notes),
+                })
+                if adj_dollar > 0:
+                    st.success(f"Suggested adjustment: **+${adj_dollar:,}** ({adj_pct:+.1f}%) – illustrative only")
+                elif adj_dollar < 0:
+                    st.warning(f"Suggested adjustment: **${adj_dollar:,}** ({adj_pct:.1f}%) – illustrative only")
+                else:
+                    st.info("Neutral adjustment – add more logic or photos.")
+                st.markdown("---")
 
-    progress.empty()
+        progress.empty()
 
-    with tab2:
-        if all_data:
-            df = pd.DataFrame(all_data)
-            st.dataframe(df, use_container_width=True)
-            total_adj = df["Adjustment $"].sum()
-            avg_pct = df["% Adj"].mean()
+        with tab2:
+            if all_data:
+                df = pd.DataFrame(all_data)
+                st.dataframe(df, use_container_width=True)
+                total_adj = df["Adjustment $"].sum()
+                avg_pct = df["% Adj"].mean()
 
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Suggested Adjustment", f"${total_adj:,.0f}", delta_color="normal")
-            c2.metric("Avg % Adjustment", f"{avg_pct:.1f}%")
-            c3.metric("Photos Analyzed", len(uploaded_files))
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Total Suggested Adjustment", f"${total_adj:,.0f}", delta_color="normal")
+                c2.metric("Avg % Adjustment", f"{avg_pct:.1f}%")
+                c3.metric("Photos Analyzed", len(uploaded_files))
 
-            if total_adj > 0:
-                st.success("Overall positive uplift likely from detected upgrades & condition.")
-            elif total_adj < 0:
-                st.warning("Potential deductions from wear, outdated features, or repairs.")
-            else:
-                st.info("Neutral net adjustment – condition appears average.")
+                if total_adj > 0:
+                    st.success("Overall positive uplift likely from detected upgrades & condition.")
+                elif total_adj < 0:
+                    st.warning("Potential deductions from wear, outdated features, or repairs.")
+                else:
+                    st.info("Neutral net adjustment – condition appears average.")
 
-            csv_bytes = df.to_csv(index=False).encode("utf-8")
-            st.download_button("Download Summary CSV", csv_bytes, "property_assessment_summary.csv", "text/csv")
+                csv_bytes = df.to_csv(index=False).encode("utf-8")
+                st.download_button("Download Summary CSV", csv_bytes, "property_assessment_summary.csv", "text/csv")
 
 st.markdown(
     """
