@@ -34,6 +34,31 @@ class JobStatusResponse(BaseModel):
     error: Optional[str] = None
 
 
+class BulkJobItem(BaseModel):
+    """One row for bulk job creation."""
+
+    address: Optional[str] = None
+    zip_code: Optional[str] = None
+    home_value: int = Field(..., ge=200_000, le=10_000_000)
+    photo_urls: List[str] = Field(..., min_length=1, max_length=10, description="1–10 image URLs")
+
+
+class BulkJobRequest(BaseModel):
+    """Request body for POST /api/v1/jobs/bulk."""
+
+    jobs: List[BulkJobItem] = Field(..., max_length=100, description="Up to 100 jobs per request")
+
+
+class BulkJobError(BaseModel):
+    index: int
+    reason: str
+
+
+class BulkJobResponse(BaseModel):
+    job_ids: List[str]
+    errors: List[BulkJobError] = []
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 

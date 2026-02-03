@@ -1,9 +1,12 @@
+# Render Blueprint: Web Service for Repair ROI Optimizer (Streamlit).
+# For full ML analysis: in Dashboard set Instance type to Standard (2 GB) and FREE_TIER=false.
 services:
   - type: web
     runtime: python
     name: property-assessment
     plan: free
     buildCommand: pip install -r requirements.txt
+    # PORT is set by Render; must bind to 0.0.0.0 for health checks.
     startCommand: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0
     envVars:
       - key: FREE_TIER

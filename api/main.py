@@ -6,10 +6,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from api.auth import require_api_key
 from api.routes import health, jobs, properties, strategies, execute, workspaces, analytics, contractor, export
 from core.config import settings
+from core.metrics import metrics_output
 from db.session import init_db
 
 
@@ -50,3 +52,10 @@ app.include_router(export.router, prefix="/api/v1")
 @app.get("/")
 def root():
     return {"service": "Repair ROI Optimizer API", "docs": "/docs"}
+
+
+@app.get("/metrics")
+def metrics():
+    """Prometheus-compatible metrics (jobs started/completed/failed, pipeline duration)."""
+    body, content_type = metrics_output()
+    return Response(content=body, media_type=content_type)

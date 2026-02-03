@@ -26,7 +26,7 @@ Opendoor-inspired prototype: upload 1–5 home photos (kitchen, bathroom, living
 2. In the [Render Dashboard](https://dashboard.render.com), click **New → Web Service**, connect the repo.
 3. Use these settings (or use the repo’s `render.yaml` Blueprint for one-click deploy):
    - **Build command:** `pip install -r requirements.txt`
-   - **Start command:** `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0`
+   - **Start command:** `streamlit run app.py --server.port=$PORT --server.address=0.0.0.0` (Render sets `PORT`; app must bind to `0.0.0.0:$PORT`.)
    - **Python:** Render uses `runtime.txt` (e.g. `python-3.11.7`) if present.
 4. **Free and Starter (512 MB RAM):** Both have 512 MB, which is **not enough** to run the AI models. The app will stay up and show an upgrade message when you upload photos. Spins down after 15 min idle (cold start ~1 min).
 5. **Standard (2 GB) or higher:** Upgrade in Render → Settings → Instance type (e.g. **Standard $25/mo, 2 GB**). Set env var **`FREE_TIER=false`** to enable room classification, BLIP captioning, YOLO detection, and **Repair Strategies**. Optionally **`USE_LLAVA=true`** for LLaVA (use Standard or higher).
@@ -72,6 +72,7 @@ Set `DATABASE_URL` and `REDIS_URL` when running the API/worker outside Docker (e
 
 ## Documentation (Acquisition Package)
 
+- **docs/RENDER.md** – Run on Render: checklist and troubleshooting
 - **docs/ARCHITECTURE.md** – Component overview and data flow  
 - **docs/API-SPEC.md** – OpenAPI and key endpoints  
 - **docs/DATABASE-SCHEMA.md** – Tables and relationships  

@@ -3,7 +3,7 @@ SQLAlchemy models for jobs, properties (Phase 2), teams/workspaces/audit (Phase 
 """
 from datetime import datetime
 from typing import Any, Optional
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text, create_engine
+from sqlalchemy import Column, DateTime, ForeignKey, Index, String, Text, create_engine
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.sql import func
@@ -78,6 +78,10 @@ class Job(Base):
     """Analysis job: photos + params → status + result. Optional property_id (Phase 2)."""
 
     __tablename__ = "jobs"
+    __table_args__ = (
+        Index("ix_job_status_created_at", "status", "created_at"),
+        Index("ix_job_property_id_created_at", "property_id", "created_at"),
+    )
 
     id = Column(String(36), primary_key=True)
     property_id = Column(String(36), ForeignKey("properties.id", ondelete="SET NULL"), nullable=True, index=True)
@@ -93,6 +97,7 @@ class Execution(Base):
     """Execute strategy stub: property + strategy_key → dispatched (Phase 2)."""
 
     __tablename__ = "executions"
+    __table_args__ = (Index("ix_execution_status", "status"),)
 
     id = Column(String(36), primary_key=True)
     property_id = Column(String(36), ForeignKey("properties.id", ondelete="CASCADE"), nullable=False, index=True)

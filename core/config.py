@@ -39,6 +39,9 @@ class Settings:
     # API key for external access (Phase 2). If set, X-API-Key header required.
     api_key: str = ""
 
+    # Zillow / RapidAPI for real comps (acquisition readiness). If set, market_intelligence uses real data.
+    zillow_api_key: str = ""
+
     def __init__(self) -> None:
         self.api_host = _str(os.environ.get("API_HOST"), "0.0.0.0")
         self.api_port = _int(os.environ.get("API_PORT"), 8000)
@@ -48,6 +51,7 @@ class Settings:
         self.free_tier = os.environ.get("FREE_TIER", "true").lower() == "true"
         self.api_base_url = _str(os.environ.get("API_BASE_URL"), "")
         self.api_key = _str(os.environ.get("API_KEY"), "")
+        self.zillow_api_key = _str(os.environ.get("ZILLOW_API_KEY", os.environ.get("RAPIDAPI_KEY")), "")
 
     @property
     def database_configured(self) -> bool:

@@ -3,6 +3,7 @@ Celery task: run ML pipeline and update job in DB.
 Serializes photo bytes as base64 for JSON-safe broker payload.
 """
 import base64
+import time
 from typing import List
 
 from celery import Celery
@@ -50,6 +51,7 @@ def run_analysis_task(
     finally:
         session.close()
 
+    t0 = time.perf_counter()
     try:
         result = run_pipeline(
             photo_bytes_list,
@@ -59,6 +61,12 @@ def run_analysis_task(
             use_llava=settings.use_llava,
         )
     except Exception as e:
+        try:
+            from core.metrics import jobs_failed, pipeline_duration_seconds
+            jobs_failed.inc()
+            pipeline_duration_seconds.observe(time.perf_counter() - t0)
+        except Exception:
+            pass
         factory = get_session_factory(settings.database_url)
         session = factory()
         try:
@@ -84,5 +92,26 @@ def run_analysis_task(
             session.commit()
     finally:
         session.close()
+
+    try:
+        from core.metrics import jobs_completed, pipeline_duration_seconds
+        jobs_completed.inc()
+        pipeline_duration_seconds.observe(time.perf_counter() - t0)
+    except Exception:
+        pass
+
+    # MLflow: log run per job (model versions, params, metrics)
+    try:
+        from core.mlflow_logging import log_pipeline_run
+        log_pipeline_run(
+            job_id=job_id,
+            zip_code=zip_code or None,
+            home_value=home_value,
+            result=result,
+            model_variant="blip",
+            free_tier=settings.free_tier,
+        )
+    except Exception:
+        pass
 
     return {"job_id": job_id, "status": "completed"}

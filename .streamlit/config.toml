@@ -1,3 +1,5 @@
+# On Render, use start command: streamlit run app.py --server.port=$PORT --server.address=0.0.0.0
+# (PORT is set by Render; CLI overrides port below)
 [server]
 headless = true
 address = "0.0.0.0"

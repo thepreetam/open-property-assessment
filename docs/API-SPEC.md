@@ -20,6 +20,9 @@ The API is documented via FastAPI’s OpenAPI schema at **`/docs`** (Swagger UI)
 | GET | /api/v1/ready | Readiness |
 | POST | /api/v1/jobs | Create analysis job (multipart: files, home_value, zip_code, property_id) |
 | GET | /api/v1/jobs/{job_id} | Job status and result |
+| WS | /api/v1/jobs/{job_id}/stream | WebSocket: job progress (status pushed every ~1.5 s until completed/failed) |
+| POST | /api/v1/jobs/bulk | Bulk job creation (JSON: jobs with address, zip_code, home_value, photo_urls) |
+| GET | /metrics | Prometheus metrics (jobs started/completed/failed, pipeline duration) |
 | POST | /api/v1/properties | Create property |
 | GET | /api/v1/properties | List properties (optional workspace_id) |
 | GET | /api/v1/properties/{id} | Get property |

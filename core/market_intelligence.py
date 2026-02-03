@@ -1,9 +1,9 @@
 """
-Market intelligence stub: uplift/cost by zip (Phase 2).
-Real implementation would call comps/cost APIs (Zillow, RSMeans, etc.).
+Market intelligence: uplift/cost by zip. Uses real Zillow data when ZILLOW_API_KEY set, else stub.
 """
 from typing import Any, Dict, Optional, Tuple
 
+from core.config import settings
 
 # Stub: zip prefix → cost multiplier, uplift multiplier (1.0 = use base repair_data)
 _ZIP_MULTIPLIERS: Dict[str, Tuple[float, float]] = {
@@ -15,9 +15,17 @@ _ZIP_MULTIPLIERS: Dict[str, Tuple[float, float]] = {
 
 
 def get_market_multipliers(zip_code: Optional[str]) -> Tuple[float, float]:
-    """Return (cost_multiplier, uplift_multiplier) for zip. Default (1.0, 1.0)."""
+    """Return (cost_multiplier, uplift_multiplier) for zip. Uses real data when ZILLOW_API_KEY set."""
     if not zip_code or len(zip_code) < 2:
         return (1.0, 1.0)
+    if settings.zillow_api_key:
+        try:
+            from core.real_data import get_zillow_data
+            data = get_zillow_data(zip_code.strip())
+            if data:
+                return (float(data.get("cost_multiplier", 1.0)), float(data.get("uplift_multiplier", 1.0)))
+        except Exception:
+            pass
     prefix = zip_code[:2]
     return _ZIP_MULTIPLIERS.get(prefix, (1.0, 1.0))
 
