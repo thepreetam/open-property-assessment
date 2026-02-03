@@ -19,10 +19,10 @@ def load_room_classifier():
     import torch
     from transformers import pipeline
     device = 0 if torch.cuda.is_available() else -1
-    # Smaller model for 512MB: JuanMa360/room-classification (andupets ViT is too large on free tier)
+    # andupets is compatible with transformers image-classification pipeline (JuanMa360 is not in newer transformers)
     return pipeline(
         "image-classification",
-        model="JuanMa360/room-classification",
+        model="andupets/real-estate-image-classification",
         device=device,
     )
 
