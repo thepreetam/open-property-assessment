@@ -1,0 +1,74 @@
+# Phase 1 local full stack: Streamlit, FastAPI, Celery worker, PostgreSQL, Redis.
+# Run: docker-compose up -d
+# Then: Streamlit http://localhost:8501, API http://localhost:8000, docs http://localhost:8000/docs
+
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: repair
+      POSTGRES_PASSWORD: repair
+      POSTGRES_DB: repair_optimizer
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U repair -d repair_optimizer"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://repair:repair@db:5432/repair_optimizer
+      REDIS_URL: redis://redis:6379/0
+      FREE_TIER: "true"
+      API_BASE_URL: http://localhost:8000
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: celery -A worker.tasks worker --loglevel=info
+    environment:
+      DATABASE_URL: postgresql://repair:repair@db:5432/repair_optimizer
+      REDIS_URL: redis://redis:6379/0
+      FREE_TIER: "true"
+      USE_LLAVA: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  streamlit:
+    build: .
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      FREE_TIER: "true"
+    # Optional: point to API for async jobs (future) – for now runs in-process pipeline
+
+volumes:
+  pgdata: {}

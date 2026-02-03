@@ -9,3 +9,7 @@ venv/
 .eggs/
 dist/
 build/
+.pytest_cache/
+*.db
+*.sqlite
+pgdata/
