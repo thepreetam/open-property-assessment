@@ -17,12 +17,15 @@ FREE_TIER = os.environ.get("FREE_TIER", "true").lower() == "true"
 @st.cache_resource(show_spinner="Loading room classifier...")
 def load_room_classifier():
     import torch
-    from transformers import pipeline
+    from transformers import pipeline, AutoImageProcessor
     device = 0 if torch.cuda.is_available() else -1
-    # andupets is compatible with transformers image-classification pipeline (JuanMa360 is not in newer transformers)
+    model_id = "andupets/real-estate-image-classification"
+    # Use slow processor to avoid ViTImageProcessor "fast processor" warning and match original checkpoint behavior
+    image_processor = AutoImageProcessor.from_pretrained(model_id, use_fast=False)
     return pipeline(
         "image-classification",
-        model="andupets/real-estate-image-classification",
+        model=model_id,
+        image_processor=image_processor,
         device=device,
     )
 
