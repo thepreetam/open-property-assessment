@@ -32,7 +32,8 @@ def load_captioner():
     import torch
     from transformers import pipeline
     device = 0 if torch.cuda.is_available() else -1
-    return pipeline("image-to-text", model="Salesforce/blip-image-captioning-large", device=device)
+    # transformers 5.x uses "image-text-to-text" instead of "image-to-text"
+    return pipeline("image-text-to-text", model="Salesforce/blip-image-captioning-large", device=device)
 
 
 @st.cache_resource(show_spinner="Loading YOLO detector...")
